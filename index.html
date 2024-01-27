@@ -22,13 +22,26 @@
                 <div class="col-sm-2">
                     <h3>Enter the route details</h3>
                     <div class="search-container">
-                        <input type="text" placeholder="Search.." name="search">
-                        <button type="button" class="btn btn-primary sm" onclick="startTimerAndSendRequests('39')">Search</button>
-
+                        <div class="mb-3">
+                            <input type="text" class="form-control"  placeholder="Bus route number" name="search" id="route">
+                        </div>
+                    
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="inBound" name="Inbound" checked>
+                            <label class="form-check-label" for="check1">Inbound</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="outBound" name="Outbound">
+                            <label class="form-check-label" for="check2">Outbound</label>
+                        </div>
+                        
+                        <button type="button" class="btn btn-primary sm" onclick="displayBusData()">Search</button>
                         <button type="button" class="btn btn-primary sm" onclick="clearTheMap()">Clear</button>
-
                         <button type="button" class="btn btn-primary sm" onclick="httpGetRouteStopsData('39')">Get bus stops</button>
-
+                    </div>
+                    <div>
+                        <p id="busRouteError"></p>
+                        <p id="busCount"></p>
                     </div>
                 </div>
             </div>
@@ -40,6 +53,7 @@
         <script>
             const dataHolder = document.getElementById("busData");
             const busStopsHolder = document.getElementById("busData1");
+            const busCountHolder = document.getElementById("busCount");
             const BostonLon = 42.332445;
             const BostonLat = -71.094435;
 
@@ -99,6 +113,26 @@
                 }
             }
 
+
+            // Check if the input is a number.
+            function isInt(value) {
+                return !isNaN(value) &&
+                parseInt(Number(value)) == value &&
+                !isNaN(parseInt(value, 10));
+            }
+
+            function displayBusData() {
+                let busRouteErrorHolder = document.getElementById("busRouteError");
+                let inputValue = document.getElementById("route").value;
+                if (isInt(inputValue)) {
+                    startTimerAndSendRequests(inputValue);
+                    busRouteErrorHolder.value = "";
+                }
+                else {
+                    busRouteErrorHolder.value = "The bus route must be a number.";
+                }
+            }
+
             function httpGetBusData(routeNumber) {
                 clearTheMap();
                 url = 'https://api-v3.mbta.com/vehicles?page%5Blimit%5D=10&filter%5Broute%5D=' + routeNumber;
@@ -140,9 +174,10 @@
                         markers.addMarker(busMarker);
                         makerList.push(busMarker);
                     }
+                    busCountHolder.innerHTML = "Found " + busData.length + " buss(es) on route.";
                     // Just print the data for now. Later we can map it to the actual map...
-                    console.log(debugString)
-                    dataHolder.innerHTML=debugString;
+                    //console.log(debugString)
+                    //dataHolder.innerHTML=debugString;
                     // markers.addMarker(new OpenLayers.Marker(lonLat2));
                     // markers.addMarker(new OpenLayers.Marker(lonLat));
                 })
@@ -187,8 +222,8 @@
                         busStopMarkerList.push(busStopMarker);
                     }
                     // Just print the data for now. Later we can map it to the actual map...
-                    console.log(debugString)
-                    busStopsHolder.innerHTML=debugString;
+                    //console.log(debugString)
+                    //busStopsHolder.innerHTML=debugString;
                     // markers.addMarker(new OpenLayers.Marker(lonLat2));
                     // markers.addMarker(new OpenLayers.Marker(lonLat));
                 })
