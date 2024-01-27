@@ -1,0 +1,201 @@
+<!DOCTYPE HTML>
+<html>
+    <head>
+        <title>MBTA Bus Tracker</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+    </head>
+    <body>
+        <div class="jumbotron text-center">
+            <h1>MBTA Bus Tracker</h1>
+        </div>
+
+        <div class="container">
+            <div class="row">
+                <div class="col-sm-10">
+                    <h3>Map</h3>
+                    <div id="mapdiv" style="height:500px"></div>
+                </div>
+                <div class="col-sm-2">
+                    <h3>Enter the route details</h3>
+                    <div class="search-container">
+                        <input type="text" placeholder="Search.." name="search">
+                        <button type="button" class="btn btn-primary sm" onclick="startTimerAndSendRequests('39')">Search</button>
+
+                        <button type="button" class="btn btn-primary sm" onclick="clearTheMap()">Clear</button>
+
+                        <button type="button" class="btn btn-primary sm" onclick="httpGetRouteStopsData('39')">Get bus stops</button>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+        <p id="busData"></p>
+        <p id="busData1"></p>
+
+        <script src="OpenLayers.js"></script>
+        <script>
+            const dataHolder = document.getElementById("busData");
+            const busStopsHolder = document.getElementById("busData1");
+            const BostonLon = 42.332445;
+            const BostonLat = -71.094435;
+
+            var timer = null; 
+            var interval = 20000; // Check every 20 seconds.
+
+            var makerList = []
+
+            var busStopMarkerList = []
+            
+            map = new OpenLayers.Map("mapdiv");
+            map.addLayer(new OpenLayers.Layer.OSM());
+        
+            var lonLat = new OpenLayers.LonLat( BostonLat, BostonLon)
+                    .transform(
+                    new OpenLayers.Projection("EPSG:4326"), // transform from WGS 1984
+                    map.getProjectionObject() // to Spherical Mercator Projection
+                    );
+
+            var lonLat2 = new OpenLayers.LonLat( -50.1279688 ,51.5077286 )
+            .transform(
+                new OpenLayers.Projection("EPSG:4326"), // transform from WGS 1984
+                map.getProjectionObject() // to Spherical Mercator Projection
+            );
+                    
+            var zoom=12;
+        
+            var markers = new OpenLayers.Layer.Markers( "Markers" );
+            map.addLayer(markers);
+            
+            map.setCenter (lonLat, zoom);
+            
+            function clearTheMap() {
+                for (let i=0; i<makerList.length; ++i) {
+                    markers.removeMarker(makerList[i]);
+                }
+                makerList = [];
+                for (let i=0; i<busStopMarkerList.length; ++i) {
+                    markers.removeMarker(busStopMarkerList[i]);
+                }
+                busStopMarkerList = [];
+                dataHolder.innerHTML = "";
+                clearInterval(timer);
+                timer = null;
+            }
+
+            function startTimerAndSendRequests(routeNumber) {
+                // Call the search function the first time
+                httpGetBusData(routeNumber);
+                // Set the timer to call the search function at an interval.
+                if (timer !== null) {
+                    console.log("Timer active");
+                } else {
+                    timer=setInterval(function() {
+                        httpGetBusData(routeNumber);
+                    }, interval)
+                }
+            }
+
+            function httpGetBusData(routeNumber) {
+                clearTheMap();
+                url = 'https://api-v3.mbta.com/vehicles?page%5Blimit%5D=10&filter%5Broute%5D=' + routeNumber;
+                fetch(url, { headers: {
+                            'accept': 'application/vnd.api+json'
+                                }
+                        }
+                    )
+                .then(response => response.json())
+                .then(data => {
+                    // Function to parse the data from the MBTA. 
+                    // Use this data fill up the map.
+                    let debugString = "";
+                    let busData = data.data;
+                    for(let i = 0; i < busData.length; i++) {
+                        let busAttributes = busData[i].attributes;
+                        debugString += "Bearing: " + busAttributes.bearing;
+                        debugString += " Lat: " + busAttributes.latitude;
+                        debugString += " Lon: " + busAttributes.longitude;
+                        debugString += " Seates: " + busAttributes.occupancy_status;
+                        debugString += " Direction: " + busAttributes.direction_id;
+                        debugString += "\n";
+                        
+                        let lon = busAttributes.longitude
+                        let lat = busAttributes.latitude
+
+                        var busLongLat = new OpenLayers.LonLat(lon, lat)
+                        .transform(
+                        new OpenLayers.Projection("EPSG:4326"), // transform from WGS 1984
+                        map.getProjectionObject() // to Spherical Mercator Projection
+                        );
+
+                        console.log(i)
+
+                        var icon = new OpenLayers.Icon("./images/stop.png");
+
+                        //var newBusMarker = busFont.createMarker()
+                        var busMarker = new OpenLayers.Marker(busLongLat, icon);
+                        markers.addMarker(busMarker);
+                        makerList.push(busMarker);
+                    }
+                    // Just print the data for now. Later we can map it to the actual map...
+                    console.log(debugString)
+                    dataHolder.innerHTML=debugString;
+                    // markers.addMarker(new OpenLayers.Marker(lonLat2));
+                    // markers.addMarker(new OpenLayers.Marker(lonLat));
+                })
+                .catch(error => console.error(error));
+            }
+
+            function httpGetRouteStopsData(routeNumber) {
+                url = 'https://api-v3.mbta.com/stops?filter%5Bdirection_id%5D=0&filter%5Broute%5D=' + routeNumber;
+                fetch(url, { headers: {
+                            'accept': 'application/vnd.api+json'
+                                }
+                        }
+                    )
+                .then(response => response.json())
+                .then(data => {
+                    // Function to parse the data from the MBTA. 
+                    // Use this data fill up the map.
+                    let debugString = "";
+                    let stopData = data.data;
+                    for(let i = 0; i < stopData.length; i++) {
+                        let stopAttributes = stopData[i].attributes;
+                        debugString += " Lat: " + stopAttributes.latitude;
+                        debugString += " Lon: " + stopAttributes.longitude;
+                        debugString += "\n";
+                        
+                        let lon = stopAttributes.longitude
+                        let lat = stopAttributes.latitude
+
+                        var busStopLongLat = new OpenLayers.LonLat(lon, lat)
+                        .transform(
+                        new OpenLayers.Projection("EPSG:4326"), // transform from WGS 1984
+                        map.getProjectionObject() // to Spherical Mercator Projection
+                        );
+
+                        console.log(i)
+
+                        var icon = new OpenLayers.Icon("./images/mbtaStop.png");
+
+                        //var newBusMarker = busFont.createMarker()
+                        var busStopMarker = new OpenLayers.Marker(busStopLongLat, icon);
+                        markers.addMarker(busStopMarker);
+                        busStopMarkerList.push(busStopMarker);
+                    }
+                    // Just print the data for now. Later we can map it to the actual map...
+                    console.log(debugString)
+                    busStopsHolder.innerHTML=debugString;
+                    // markers.addMarker(new OpenLayers.Marker(lonLat2));
+                    // markers.addMarker(new OpenLayers.Marker(lonLat));
+                })
+                .catch(error => console.error(error));
+            }
+
+
+        </script>
+    </body>
+</html>
