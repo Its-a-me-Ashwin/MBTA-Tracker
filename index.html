@@ -16,22 +16,21 @@
         <div class="container">
             <div class="row">
                 <div class="col-sm-10">
-                    <h3>Map</h3>
                     <div id="mapdiv" style="height:500px"></div>
                 </div>
                 <div class="col-sm-2">
-                    <h3>Enter the route details</h3>
+                    <h4>Enter the route details</h4>
                     <div class="search-container">
                         <div class="mb-3">
                             <input type="text" class="form-control"  placeholder="Bus route number" name="search" id="route">
                         </div>
                     
                         <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="inBound" name="Inbound" checked>
+                            <input type="checkbox" class="form-check-input" id="inBoundID" name="Inbound" checked>
                             <label class="form-check-label" for="check1">Inbound</label>
                         </div>
                         <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="outBound" name="Outbound">
+                            <input type="checkbox" class="form-check-input" id="outBoundID" name="Outbound">
                             <label class="form-check-label" for="check2">Outbound</label>
                         </div>
                         
@@ -54,8 +53,16 @@
             const dataHolder = document.getElementById("busData");
             const busStopsHolder = document.getElementById("busData1");
             const busCountHolder = document.getElementById("busCount");
+
             const BostonLon = 42.332445;
             const BostonLat = -71.094435;
+            var zoom=12;
+
+            const occupencyFull = "FEW_SEATS_AVAILABLE";
+            const occupancyEmpty = "MANY_SEATS_AVAILABLE";
+
+            const outBound = 0;
+            const inBound = 1;
 
             var timer = null; 
             var interval = 20000; // Check every 20 seconds.
@@ -71,15 +78,7 @@
                     .transform(
                     new OpenLayers.Projection("EPSG:4326"), // transform from WGS 1984
                     map.getProjectionObject() // to Spherical Mercator Projection
-                    );
-
-            var lonLat2 = new OpenLayers.LonLat( -50.1279688 ,51.5077286 )
-            .transform(
-                new OpenLayers.Projection("EPSG:4326"), // transform from WGS 1984
-                map.getProjectionObject() // to Spherical Mercator Projection
-            );
-                    
-            var zoom=12;
+                    );       
         
             var markers = new OpenLayers.Layer.Markers( "Markers" );
             map.addLayer(markers);
@@ -119,15 +118,15 @@
                 timer = null;
             }
 
-            function startTimerAndSendRequests(routeNumber) {
+            function startTimerAndSendRequests(routeNumber, outBound, inBound) {
                 // Call the search function the first time
-                httpGetBusData(routeNumber);
+                httpGetBusData(routeNumber, outBound, inBound);
                 // Set the timer to call the search function at an interval.
                 if (timer !== null) {
-                    console.log("Timer active");
+                    console.log("Timer active.");
                 } else {
                     timer=setInterval(function() {
-                        httpGetBusData(routeNumber);
+                        httpGetBusData(routeNumber, outBound, inBound);
                     }, interval)
                 }
             }
@@ -142,9 +141,12 @@
 
             function displayBusData() {
                 let busRouteErrorHolder = document.getElementById("busRouteError");
+                let outBoundValue = document.getElementById("outBoundID").checked;
+                let inBoundValue = document.getElementById("inBoundID").checked;
                 let inputValue = document.getElementById("route").value;
+
                 if (isInt(inputValue)) {
-                    startTimerAndSendRequests(inputValue);
+                    startTimerAndSendRequests(inputValue, outBoundValue, inBoundValue);
                     busRouteErrorHolder.innerHTML = "";
                 }
                 else {
@@ -152,9 +154,16 @@
                 }
             }
 
-            function httpGetBusData(routeNumber) {
-                clearTheMapOfBusses();
-                url = 'https://api-v3.mbta.com/vehicles?page%5Blimit%5D=10&filter%5Broute%5D=' + routeNumber;
+            function httpGetBusData(routeNumber, outBound, inBound) {
+                clearTheMapOfBusses()
+                url = 'https://api-v3.mbta.com/vehicles?filter%5Broute%5D=' + routeNumber;
+                if (outBound && !inBound) {
+                    url += "&filter%5Bdirection_id%5D=0";
+                }
+                if (inBound && !outBound) {
+                    url += "&filter%5Bdirection_id%5D=1";
+                }
+                      
                 fetch(url, { headers: {
                             'accept': 'application/vnd.api+json'
                                 }
@@ -184,21 +193,24 @@
                         map.getProjectionObject() // to Spherical Mercator Projection
                         );
 
-                        console.log(i)
-
-                        var icon = new OpenLayers.Icon("./images/stop.png");
+                        var busIconPath = ""
+                        if (busAttributes.occupancy_status == occupencyFull) {
+                            busIconPath = "./images/busFull.png"
+                        }
+                        if (busAttributes.occupancy_status == occupancyEmpty) {
+                            busIconPath = "./images/busEmpty.png"
+                        }
+                        var icon = new OpenLayers.Icon(busIconPath);
 
                         //var newBusMarker = busFont.createMarker()
                         var busMarker = new OpenLayers.Marker(busLongLat, icon);
                         markers.addMarker(busMarker);
                         makerList.push(busMarker);
                     }
-                    busCountHolder.innerHTML = "Found " + busData.length + " buss(es) on route.";
+                    busCountHolder.innerHTML = "Found " + busData.length + " busls(es) on route.";
                     // Just print the data for now. Later we can map it to the actual map...
                     //console.log(debugString)
                     //dataHolder.innerHTML=debugString;
-                    // markers.addMarker(new OpenLayers.Marker(lonLat2));
-                    // markers.addMarker(new OpenLayers.Marker(lonLat));
                 })
                 .catch(error => console.error(error));
             }
@@ -244,8 +256,6 @@
                         map.getProjectionObject() // to Spherical Mercator Projection
                         );
 
-                        console.log(i)
-
                         var icon = new OpenLayers.Icon("./images/mbtaStop.webp");
 
                         //var newBusMarker = busFont.createMarker()
@@ -256,8 +266,6 @@
                     // Just print the data for now. Later we can map it to the actual map...
                     //console.log(debugString)
                     //busStopsHolder.innerHTML=debugString;
-                    // markers.addMarker(new OpenLayers.Marker(lonLat2));
-                    // markers.addMarker(new OpenLayers.Marker(lonLat));
                 })
                 .catch(error => console.error(error));
             }
