@@ -35,9 +35,9 @@
                             <label class="form-check-label" for="check2">Outbound</label>
                         </div>
                         
-                        <button type="button" class="btn btn-primary sm" onclick="displayBusData()">Search</button>
+                        <button type="button" class="btn btn-primary sm" onclick="displayBusData()">Get bus</button>
+                        <button type="button" class="btn btn-primary sm" onclick="displayBusStops()">Get bus stops</button>
                         <button type="button" class="btn btn-primary sm" onclick="clearTheMap()">Clear</button>
-                        <button type="button" class="btn btn-primary sm" onclick="httpGetRouteStopsData('39')">Get bus stops</button>
                     </div>
                     <div>
                         <p id="busRouteError"></p>
@@ -100,6 +100,25 @@
                 timer = null;
             }
 
+            function clearTheMapOfStops() {
+                for (let i=0; i<busStopMarkerList.length; ++i) {
+                    markers.removeMarker(busStopMarkerList[i]);
+                }
+                busStopMarkerList = [];
+                dataHolder.innerHTML = "";
+            }
+
+            function clearTheMapOfBusses() {
+                for (let i=0; i<makerList.length; ++i) {
+                    markers.removeMarker(makerList[i]);
+                }
+                makerList = [];
+                busStopMarkerList = [];
+                dataHolder.innerHTML = "";
+                clearInterval(timer);
+                timer = null;
+            }
+
             function startTimerAndSendRequests(routeNumber) {
                 // Call the search function the first time
                 httpGetBusData(routeNumber);
@@ -126,15 +145,15 @@
                 let inputValue = document.getElementById("route").value;
                 if (isInt(inputValue)) {
                     startTimerAndSendRequests(inputValue);
-                    busRouteErrorHolder.value = "";
+                    busRouteErrorHolder.innerHTML = "";
                 }
                 else {
-                    busRouteErrorHolder.value = "The bus route must be a number.";
+                    busRouteErrorHolder.innerHTML = "The bus route must be a number.";
                 }
             }
 
             function httpGetBusData(routeNumber) {
-                clearTheMap();
+                clearTheMapOfBusses();
                 url = 'https://api-v3.mbta.com/vehicles?page%5Blimit%5D=10&filter%5Broute%5D=' + routeNumber;
                 fetch(url, { headers: {
                             'accept': 'application/vnd.api+json'
@@ -184,6 +203,19 @@
                 .catch(error => console.error(error));
             }
 
+            function displayBusStops(){
+                clearTheMapOfStops();
+                let busRouteErrorHolder = document.getElementById("busRouteError");
+                let inputValue = document.getElementById("route").value;
+                if (isInt(inputValue)) {
+                    httpGetRouteStopsData(inputValue);
+                    busRouteErrorHolder.innerHTML = "";
+                }
+                else {
+                    busRouteErrorHolder.innerHTML = "The bus route must be a number.";
+                }
+            }
+
             function httpGetRouteStopsData(routeNumber) {
                 url = 'https://api-v3.mbta.com/stops?filter%5Bdirection_id%5D=0&filter%5Broute%5D=' + routeNumber;
                 fetch(url, { headers: {
@@ -214,7 +246,7 @@
 
                         console.log(i)
 
-                        var icon = new OpenLayers.Icon("./images/mbtaStop.png");
+                        var icon = new OpenLayers.Icon("./images/mbtaStop.webp");
 
                         //var newBusMarker = busFont.createMarker()
                         var busStopMarker = new OpenLayers.Marker(busStopLongLat, icon);
