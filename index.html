@@ -7,18 +7,35 @@
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
         <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+        <style>
+            * {
+              box-sizing: border-box;
+            }
+            
+            body {
+              background-color: #a7a8ab;
+              font-family: Helvetica, sans-serif;
+            }
+            .routeNames {
+                font-size: 12px;
+            }
+
+            .header {
+                background-color: hwb(225 35% 0%);
+            }
+        </style>
     </head>
     <body>
-        <div class="jumbotron text-center">
+        <div class="jumbotron text-center header">
             <h1>MBTA Bus Tracker</h1>
         </div>
 
         <div class="container">
             <div class="row">
-                <div class="col-sm-10">
-                    <div id="mapdiv" style="height:500px"></div>
+                <div class="col-sm-10 nopadding">
+                    <div id="mapdiv" style="height:600px"></div>
                 </div>
-                <div class="col-sm-2">
+                <div class="col-sm-1 nopadding">
                     <h4>Enter the route details</h4>
                     <div class="search-container">
                         <div class="mb-3">
@@ -26,11 +43,11 @@
                         </div>
                     
                         <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="inBoundID" name="Inbound" checked>
+                            <input type="checkbox" class="form-check-input" id="inBoundID" name="Inbound" onclick="onclickInBoud()" checked>
                             <label class="form-check-label" for="check1">Inbound</label>
                         </div>
                         <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="outBoundID" name="Outbound">
+                            <input type="checkbox" class="form-check-input" id="outBoundID" name="Outbound" onclick="onclickOutBoud()">
                             <label class="form-check-label" for="check2">Outbound</label>
                         </div>
                         
@@ -43,6 +60,11 @@
                         <p id="busCount"></p>
                     </div>
                 </div>
+                <div class="col-sm-1 nopadding">
+                    <h4> Route </h4>
+                    <ul id="busStopListHolder">
+                    </ul>
+                </div>
             </div>
         </div>
         <p id="busData"></p>
@@ -53,6 +75,11 @@
             const dataHolder = document.getElementById("busData");
             const busStopsHolder = document.getElementById("busData1");
             const busCountHolder = document.getElementById("busCount");
+
+            const busStopListHolder = document.getElementById("busStopListHolder");
+
+            const inBoundCheckHolder = document.getElementById("inBoundID");
+            const outBoundCheckHolder = document.getElementById("outBoundID");
 
             const BostonLon = 42.332445;
             const BostonLat = -71.094435;
@@ -71,6 +98,8 @@
 
             var busStopMarkerList = []
             
+            var busStopsList = []
+
             map = new OpenLayers.Map("mapdiv");
             map.addLayer(new OpenLayers.Layer.OSM());
         
@@ -84,7 +113,24 @@
             map.addLayer(markers);
             
             map.setCenter (lonLat, zoom);
-            
+
+
+            function onclickInBoud() {
+                if (inBoundCheckHolder.checked) {
+                    outBoundCheckHolder.checked = false;
+                } else {
+                    outBoundCheckHolder.checked = true;
+                }
+            }
+
+            function onclickOutBoud() {
+                if (outBoundCheckHolder.checked) {
+                    inBoundCheckHolder.checked = false;
+                } else {
+                    inBoundCheckHolder.checked = true;
+                }
+            }
+
             function clearTheMap() {
                 for (let i=0; i<makerList.length; ++i) {
                     markers.removeMarker(makerList[i]);
@@ -112,7 +158,6 @@
                     markers.removeMarker(makerList[i]);
                 }
                 makerList = [];
-                busStopMarkerList = [];
                 dataHolder.innerHTML = "";
                 clearInterval(timer);
                 timer = null;
@@ -219,8 +264,11 @@
                 clearTheMapOfStops();
                 let busRouteErrorHolder = document.getElementById("busRouteError");
                 let inputValue = document.getElementById("route").value;
+                let outBoundValue = document.getElementById("outBoundID").checked;
+                let inBoundValue = document.getElementById("inBoundID").checked;
                 if (isInt(inputValue)) {
-                    httpGetRouteStopsData(inputValue);
+                    clearBusStopList();
+                    httpGetRouteStopsData(inputValue, outBoundValue, inBoundValue);
                     busRouteErrorHolder.innerHTML = "";
                 }
                 else {
@@ -228,8 +276,14 @@
                 }
             }
 
-            function httpGetRouteStopsData(routeNumber) {
-                url = 'https://api-v3.mbta.com/stops?filter%5Bdirection_id%5D=0&filter%5Broute%5D=' + routeNumber;
+            function httpGetRouteStopsData(routeNumber, outBound, inBound) {
+                url = 'https://api-v3.mbta.com/stops?filter%5Broute%5D=' + routeNumber;
+                if (outBound && !inBound) {
+                    url += "&filter%5Bdirection_id%5D=0";
+                }
+                if (inBound && !outBound) {
+                    url += "&filter%5Bdirection_id%5D=1";
+                }
                 fetch(url, { headers: {
                             'accept': 'application/vnd.api+json'
                                 }
@@ -241,6 +295,7 @@
                     // Use this data fill up the map.
                     let debugString = "";
                     let stopData = data.data;
+                    console.log(stopData);
                     for(let i = 0; i < stopData.length; i++) {
                         let stopAttributes = stopData[i].attributes;
                         debugString += " Lat: " + stopAttributes.latitude;
@@ -263,6 +318,25 @@
                         markers.addMarker(busStopMarker);
                         busStopMarkerList.push(busStopMarker);
                     }
+
+                    for(let i = 0; i < stopData.length; i++) {
+                        listElement = document.createElement("li");
+
+                        listParaElement = document.createElement("p");
+                        listParaElement.classList.add("routeNames");
+                        listParaElement.innerHTML = stopData[i].attributes.name;
+
+                        listElement.appendChild(listParaElement);
+                        if (stopData.wheelchair_boarding == 1) {
+                            // Has wheelchari access
+                            var wheelCharElement = document.createElement("i");
+                            wheelCharElement.classList.add("fa-solid");
+                            wheelCharElement.classList.add("fa-wheelchair");
+                            listElement.appendChild(wheelCharElement);    
+                        }
+                        busStopsList.push(listElement)
+                        busStopListHolder.appendChild(listElement);
+                    }
                     // Just print the data for now. Later we can map it to the actual map...
                     //console.log(debugString)
                     //busStopsHolder.innerHTML=debugString;
@@ -270,7 +344,13 @@
                 .catch(error => console.error(error));
             }
 
-
+            function clearBusStopList() {
+                for(let i = 0; i < busStopsList.length; i++) {
+                    busStopListElement = busStopsList[i];
+                    busStopListElement.parentNode.removeChild(busStopListElement);
+                }
+                busStopsList = []
+            }
         </script>
     </body>
 </html>
